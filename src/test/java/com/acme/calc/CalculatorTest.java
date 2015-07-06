@@ -64,4 +64,21 @@ public class CalculatorTest {
 		Double result = calculator.divide(firstNumber, secondNumber);
 	}
 	
+	@Test
+	public void divisionShouldThrowDivideByZeroException(){
+		//given
+		double firstNumber = 5.0;
+		double secondNumber = 0.0;
+		Exception exception = null;
+		//when
+		try{
+			calculator.divide(firstNumber, secondNumber);
+		} catch (Exception e) {
+			exception = e;
+			Assert.assertTrue(e.getClass().equals(DivisorCannotBeZeroException.class));
+		}
+		
+		Assert.assertNotNull(exception);
+	}
+	
 }
