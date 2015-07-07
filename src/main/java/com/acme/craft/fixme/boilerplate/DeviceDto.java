@@ -4,6 +4,9 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.UUID;
 
+import lombok.Getter;
+@Getter
+
 public class DeviceDto implements Serializable {
 	private static final long serialVersionUID = -8984798902681813138L;
 
