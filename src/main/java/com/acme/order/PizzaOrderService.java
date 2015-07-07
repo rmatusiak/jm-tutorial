@@ -16,8 +16,15 @@ public class PizzaOrderService {
 	
 	
 
+<<<<<<< HEAD
 	public PizzaOrderService(MailSender mailSender, OrderDatabase orderDatabase, OrderFactory orderFactory,
 			DeliveryTimeService deliveryTimeService, MessageTemplateService messageTemplate) {
+=======
+	public PizzaOrderService(MailSender mailSender,
+			OrderDatabase orderDatabase, OrderFactory orderFactory,
+			DeliveryTimeService deliveryTimeService,
+			MessageTemplateService messageTemplate) {
+>>>>>>> upstream/master
 		super();
 		this.mailSender = mailSender;
 		this.orderDatabase = orderDatabase;
@@ -47,8 +54,8 @@ public class PizzaOrderService {
 
 	public void cancelOrder(String pizzaOrderId) {
 		PizzaOrder order = orderDatabase.get(pizzaOrderId);
-		order.cancel();
 		OrderCanceledTemplate template = messageTemplate.getCancelTemplate();
+		order.cancel();
 		mailSender.send(template, order.getEmail());
 		orderDatabase.save(order);
 	}
