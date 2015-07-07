@@ -8,19 +8,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class SlideshowService {
 
 	private ResourceHolderRepository resourceHolderRepository;
 	private ResourceHolderResourceRepository resourceHolderResourceRepository;
-	private ResourceHolderScheduleRepository rsrcHldrSchdleRpstry;
 	private scheduleRepository ScheduleServiceImplSimple;
+	private static final Logger log = LoggerFactory.getLogger(SlideshowService.class);	
 
-	public SlideshowData generateTimelineData(String resourceHolderId)
-			throws Exception {
-		ResourceHolder data = resourceHolderRepository
-				.findOne(resourceHolderId);
+	public SlideshowData generateTimelineData(String resourceHolderId) throws Exception {
+		ResourceHolder resourceHolder = resourceHolderRepository.findOne(resourceHolderId);
 
-		if (data == null) {
+		if (resourceHolder == null) {
 			throw new Exception("some error");
 		}
 
@@ -38,68 +39,27 @@ public class SlideshowService {
 		Slideshow timeline = new Slideshow();
 
 		if (defaultAsset != null) {
-			timeline.setHeadline("Slideshow");
-			timeline.setText("This is your default Slideshow content");
-			timeline.setType("default");
-			timeline.setAsset(defaultAsset);
+			setTimeline(defaultAsset, timeline);
 		} else {
-			timeline.setHeadline("Slideshow");
-			timeline.setText("You dont have default content for Slideshow");
-			timeline.setType("default");
+			setNullTimeline(timeline);
 		}
 
 		ResourceSchedule schedule = ScheduleServiceImplSimple.findOne(resource
 				.getScheduleId());
 
-		if (schedule == null) {
-			try {
-				throw new Exception("");
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
+		validateSchedule(schedule);
 
-		if (schedule.getResourceSchedules().size() == 0) {
-			throw new Exception("", null);
-		}
+		Set<String> resourceIds = setResourceIds(schedule);
 
-		Set<String> resourceIds = new HashSet<>();
-		for (ResourceSchedule item : schedule.getResourceSchedules()) {
-			resourceIds.add(item.getResourceId());
-		}
+		HashMap<String, Asset> assets = setResourcesSetToMap(resourceIds);
 
-		Iterable<Resource> resourcesSet = resourceHolderResourceRepository
-				.findAll(resourceIds);
-		HashMap<String, Asset> assets = resourcesToAssetMap(resourcesSet);
-
-		List<SlideshowInterval> timelineIntervalList = new ArrayList<>();
+		List<SlideshowInterval> timelineIntervals = new ArrayList<>();
 		int slide = 0;
 
 		Calendar calendar = GregorianCalendar.getInstance();
 
-		for (int i = 0; i < schedule.getResourceSchedules().size() - 1; ++i) {
-			if (calendar.getTimeInMillis() > schedule.getResourceSchedules()
-					.get(i).getStartTime()) {
-				++slide;
-			}
-			timelineIntervalList.add(resourceScheduleToDate(schedule
-					.getResourceSchedules().get(i), assets.get(schedule
-					.getResourceSchedules().get(i).getResourceId())));
-			if (defaultAsset != null) {
-				if (schedule.getResourceSchedules().get(i).getEndTime() != schedule
-						.getResourceSchedules().get(i + 1).getStartTime()) {
-					if (schedule.getResourceSchedules().get(i).getEndTime() < calendar
-							.getTimeInMillis()) {
-						++slide;
-					}
-					timelineIntervalList.add(defaultDate(schedule
-							.getResourceSchedules().get(i).getEndTime(),
-							schedule.getResourceSchedules().get(i + 1)
-									.getStartTime(), defaultAsset));
-				}
-			}
-		}
+		slide = fillTimelineIntervals(defaultAsset, schedule, assets, timelineIntervals, slide, calendar);
+		
 		if (schedule.getResourceSchedules().size() > 0) {
 			if (calendar.getTimeInMillis() > schedule.getResourceSchedules()
 					.get(schedule.getResourceSchedules().size() - 1)
@@ -107,16 +67,93 @@ public class SlideshowService {
 				slide = 0;
 			}
 
-			timelineIntervalList.add(resourceScheduleToDate(
-					schedule.getResourceSchedules().get(
-							schedule.getResourceSchedules().size() - 1),
-					assets.get(schedule.getResourceSchedules()
-							.get(schedule.getResourceSchedules().size() - 1)
-							.getResourceId())));
+			addToTimelineIntervals(schedule, assets, timelineIntervals);
 		}
 
-		timeline.setDate(timelineIntervalList);
+		timeline.setDate(timelineIntervals);
 		return new SlideshowData(timeline, slide);
+	}
+
+	public void validateSchedule(ResourceSchedule schedule) throws Exception {
+		if (schedule == null) {
+			try {
+				throw new Exception("");
+			} catch (Exception e) {
+				log.debug("No schedule found");
+			}
+		}
+
+		if (schedule.getResourceSchedules().size() == 0) {
+			throw new Exception("", null);
+		}
+	}
+
+	public void addToTimelineIntervals(ResourceSchedule schedule, HashMap<String, Asset> assets,
+			List<SlideshowInterval> timelineIntervals) {
+		timelineIntervals.add(resourceScheduleToDate(
+				schedule.getResourceSchedules().get(
+						schedule.getResourceSchedules().size() - 1),
+				assets.get(schedule.getResourceSchedules()
+						.get(schedule.getResourceSchedules().size() - 1)
+						.getResourceId())));
+	}
+
+	public HashMap<String, Asset> setResourcesSetToMap(Set<String> resourceIds) {
+		Iterable<Resource> resourcesSet = resourceHolderResourceRepository
+				.findAll(resourceIds);
+		HashMap<String, Asset> assets = resourcesToAssetMap(resourcesSet);
+		return assets;
+	}
+
+	public Set<String> setResourceIds(ResourceSchedule schedule) {
+		Set<String> resourceIds = new HashSet<>();
+		for (ResourceSchedule item : schedule.getResourceSchedules()) {
+			resourceIds.add(item.getResourceId());
+		}
+		return resourceIds;
+	}
+
+	public int fillTimelineIntervals(Asset defaultAsset, ResourceSchedule schedule, HashMap<String, Asset> assets,
+			List<SlideshowInterval> timelineIntervals, int slide, Calendar calendar) {
+		for (int i = 0; i < schedule.getResourceSchedules().size() - 1; ++i) {
+			if (biggerTimeInCalendar(schedule, calendar, i)) {
+				++slide;
+			}
+			timelineIntervals.add(resourceScheduleToDate(schedule
+					.getResourceSchedules().get(i), assets.get(schedule
+					.getResourceSchedules().get(i).getResourceId())));
+			if (defaultAsset != null) {
+				if (schedule.getResourceSchedules().get(i).getEndTime() != schedule
+						.getResourceSchedules().get(i + 1).getStartTime()) {
+					if (biggerTimeInCalendar(schedule, calendar, i)) {
+						++slide;
+					}
+					timelineIntervals.add(defaultDate(schedule
+							.getResourceSchedules().get(i).getEndTime(),
+							schedule.getResourceSchedules().get(i + 1)
+									.getStartTime(), defaultAsset));
+				}
+			}
+		}
+		return slide;
+	}
+
+	public boolean biggerTimeInCalendar(ResourceSchedule schedule, Calendar calendar, int i) {
+		return calendar.getTimeInMillis() > schedule.getResourceSchedules()
+				.get(i).getStartTime();
+	}
+
+	public void setNullTimeline(Slideshow timeline) {
+		timeline.setHeadline("Slideshow");
+		timeline.setText("You dont have default content for Slideshow");
+		timeline.setType("default");
+	}
+
+	public void setTimeline(Asset defaultAsset, Slideshow timeline) {
+		timeline.setHeadline("Slideshow");
+		timeline.setText("This is your default Slideshow content");
+		timeline.setType("default");
+		timeline.setAsset(defaultAsset);
 	}
 
 	private Asset resourceToAsset(Resource resource) {
