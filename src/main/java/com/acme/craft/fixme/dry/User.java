@@ -26,6 +26,14 @@ public class User {
 	public void setFullName(String fullName) {
 		this.fullName = fullName;
 	}
+	public boolean isAdult() {
+		if (getAge() < 18){
+			return false;
+		} else {
+			return true;
+		}
+		
+	}
 	
 	
 }
